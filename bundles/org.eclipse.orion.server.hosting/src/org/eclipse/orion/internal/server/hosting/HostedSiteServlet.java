@@ -202,7 +202,7 @@ public class HostedSiteServlet extends OrionServlet {
 			if (base != null) {
 				rest = originalPath.removeFirstSegments(count - i).toString();
 				for (int j = 0; j < base.size(); j++) {
-					URI uri = rest.equals("") ? new URI(base.get(j)) : URIUtil.append(new URI(base.get(j)), rest);
+					URI uri = (rest.equals("") || rest.equals("/")) ? new URI(base.get(j)) : URIUtil.append(new URI(base.get(j)), rest);
 					uris.add(new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), uri.getPort(), uri.getPath(), queryString, uri.getFragment()));
 				}
 			}
