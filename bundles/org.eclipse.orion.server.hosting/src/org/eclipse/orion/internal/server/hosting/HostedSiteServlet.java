@@ -240,11 +240,18 @@ public class HostedSiteServlet extends OrionServlet {
 		String userName = site.getUserName();
 		String workspaceId = site.getWorkspaceId();
 		String workspaceUri = WORKSPACE_SERVLET_ALIAS + "/" + workspaceId; //$NON-NLS-1$
+		String fileURI = FILE_SERVLET_ALIAS + path.toString(); //$NON-NLS-1$
 		boolean allow = false;
 		// Check that user who launched the hosted site really has access to the workspace
 		try {
 			if (AuthorizationService.checkRights(userName, workspaceUri, "GET")) { //$NON-NLS-1$
-				allow = true;
+				if (AuthorizationService.checkRights(userName, fileURI, "GET")) { //$NON-NLS-1$
+					allow = true;
+				} else {
+					handleException(resp, new ServerStatus(IStatus.ERROR, HttpServletResponse.SC_FORBIDDEN, NLS.bind("No rights to access {0}", fileURI), null));
+				}
+			} else {
+				handleException(resp, new ServerStatus(IStatus.ERROR, HttpServletResponse.SC_FORBIDDEN, NLS.bind("No rights to access {0}", workspaceUri), null));
 			}
 		} catch (JSONException e) {
 			throw new ServletException(e);
@@ -271,9 +278,6 @@ public class HostedSiteServlet extends OrionServlet {
 				addEditHeaders(resp, site, path);
 				addContentTypeHeader(resp, path);
 			}
-		} else {
-			String msg = NLS.bind("No rights to access {0}", workspaceUri);
-			handleException(resp, new ServerStatus(IStatus.ERROR, HttpServletResponse.SC_FORBIDDEN, msg, null));
 		}
 		return true;
 	}
