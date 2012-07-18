@@ -14,6 +14,7 @@ import java.io.*;
 import java.net.*;
 import java.util.Properties;
 import javax.mail.*;
+import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import org.eclipse.orion.server.core.PreferenceHelper;
@@ -29,13 +30,17 @@ public class UserEmailUtil {
 	private static final String EMAIL_CONFIRMATION_FILE = "/emails/EmailConfirmation.txt"; //$NON-NLS-1$
 	private static final String EMAIL_CONFIRMATION_RESET_PASS_FILE = "/emails/EmailConfirmationPasswordReset.txt"; //$NON-NLS-1$
 	private static final String EMAIL_PASSWORD_RESET = "/emails/PasswordReset.txt"; //$NON-NLS-1$
+	private static final String EMAIL_PULL_REQUEST_FILE = "/emails/EmailPullRequestNotification.txt"; //$NON-NLS-1$
 	private static final String EMAIL_URL_LINK = "<URL>"; //$NON-NLS-1$
+	private static final String EMAIL_COMMITER_NAME = "<COMMITER_NAME>";
+	private static final String EMAIL_COMMIT_MESSAGE = "<COMMIT_MESSAGE>";
 	private static final String EMAIL_USER_LINK = "<USER>"; //$NON-NLS-1$
 	private static final String EMAIL_PASSWORD_LINK = "<PASSWORD>"; //$NON-NLS-1$
 	private Properties properties;
 	private EmailContent confirmationEmail;
 	private EmailContent confirmationResetPassEmail;
 	private EmailContent passwordResetEmail;
+	private EmailContent pullRequestEmail;
 
 	private class EmailContent {
 		private String title;
@@ -97,9 +102,10 @@ public class UserEmailUtil {
 		return util;
 	}
 
-	public boolean isEmailConfigured() {
-		return PreferenceHelper.getString("mail.from", null) != null;
+	public boolean isEmailConfigured() throws AddressException {
+		return properties.getProperty("mail.smtp.host", null) != null;
 	}
+
 
 	private void sendEmail(String subject, String messageText, String emailAddress) throws URISyntaxException, IOException, MessagingException {
 		Session session = Session.getInstance(properties, null);
@@ -112,7 +118,7 @@ public class UserEmailUtil {
 
 		message.setSubject(subject);
 		message.setText(messageText);
-
+		
 		Transport transport = session.getTransport("smtp");
 		transport.connect(properties.getProperty("mail.smtp.host", null), properties.getProperty("mail.smtp.user", null), properties.getProperty("mail.smtp.password", null));
 		transport.sendMessage(message, message.getAllRecipients());
@@ -137,6 +143,13 @@ public class UserEmailUtil {
 		confirmURL += "/" + user.getUid();
 		confirmURL += "?" + UserConstants.KEY_PASSWORD_RESET_CONFIRMATION_ID + "=" + user.getProperty(UserConstants.KEY_PASSWORD_RESET_CONFIRMATION_ID);
 		sendEmail(confirmationResetPassEmail.getTitle(), confirmationResetPassEmail.getContent().replaceAll(EMAIL_URL_LINK, confirmURL).replaceAll(EMAIL_USER_LINK, user.getLogin()), user.getEmail());
+	}
+	public void sendEmailNotification(String url, String email, String authorName, String message) throws URISyntaxException, IOException, MessagingException {
+		if (pullRequestEmail == null) {
+			pullRequestEmail = new EmailContent(EMAIL_PULL_REQUEST_FILE);
+		}
+		
+		sendEmail(pullRequestEmail.getTitle(), pullRequestEmail.getContent().replaceAll(EMAIL_COMMITER_NAME, authorName).replaceAll(EMAIL_URL_LINK, url).replaceAll(EMAIL_COMMIT_MESSAGE, message), email);
 	}
 
 	public void setPasswordResetEmail(User user) throws URISyntaxException, IOException, MessagingException {

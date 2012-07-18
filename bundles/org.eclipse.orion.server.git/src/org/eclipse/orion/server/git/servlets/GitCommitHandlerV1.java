@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
+import javax.mail.MessagingException;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -39,6 +40,7 @@ import org.eclipse.orion.server.git.jobs.LogJob;
 import org.eclipse.orion.server.git.objects.Commit;
 import org.eclipse.orion.server.git.objects.Log;
 import org.eclipse.orion.server.servlets.OrionServlet;
+import org.eclipse.orion.server.useradmin.*;
 import org.eclipse.osgi.util.NLS;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -237,6 +239,15 @@ public class GitCommitHandlerV1 extends AbstractGitHandler {
 			if (newCommit != null)
 				return identifyNewCommitResource(request, response, db, newCommit);
 
+			String PullReqLogin = requestObject.optString(GitConstants.KEY_PULL_REQ_NOTIFY_LOGIN);
+			if (PullReqLogin != null && PullReqLogin.length() != 0) {
+				String pullReqUrl = requestObject.optString(GitConstants.KEY_PULL_REQ_URL);
+				String pullReqCommit = requestObject.optString(GitConstants.KEY_PULL_REQ_COMMIT);
+				String pullReqAuthorName = requestObject.optString(GitConstants.KEY_PULL_REQ_AUTHOR_NAME);
+				String pullReqMessage = requestObject.optString(GitConstants.KEY_PULL_REQ_MESSAGE);
+				return sendNotification(request, response, db, PullReqLogin, pullReqCommit, pullReqUrl, pullReqAuthorName, pullReqMessage);
+			}
+
 			ObjectId refId = db.resolve(gitSegment);
 			if (refId == null || !Constants.HEAD.equals(gitSegment)) {
 				String msg = NLS.bind("Commit failed. Ref must be HEAD and is {0}", gitSegment);
@@ -405,6 +416,27 @@ public class GitCommitHandlerV1 extends AbstractGitHandler {
 			revWalk.release();
 		}
 	}
+
+	@SuppressWarnings({"restriction"})
+	private boolean sendNotification(HttpServletRequest request, HttpServletResponse response, Repository db, String login, String commit, String url, String authorName, String message) throws ServletException, URISyntaxException, IOException, MessagingException, JSONException, CoreException {
+		UserEmailUtil util = UserEmailUtil.getUtil();
+		if (!util.isEmailConfigured()) {
+			return statusHandler.handleRequest(request, response, new ServerStatus(IStatus.ERROR, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Smpt server not configured", null));
+		}
+		IOrionCredentialsService userAdmin = UserServiceHelper.getDefault().getUserStore();
+		User user = (User) userAdmin.getUser(UserConstants.KEY_LOGIN, login);
+		try {
+			String emailAdress = user.getEmail();
+			util.sendEmailNotification(url, emailAdress, authorName, message);
+			JSONObject result = new JSONObject();
+			result.put(GitConstants.KEY_RESULT, "Email sent");
+			OrionServlet.writeJSONResponse(request, response, result);
+			return true;
+		} catch (Exception e) {
+			return statusHandler.handleRequest(request, response, new ServerStatus(IStatus.ERROR, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "User doesn't exist", null));
+
+		}
+	};
 
 	@Override
 	protected boolean handlePut(RequestInfo requestInfo) throws ServletException {
